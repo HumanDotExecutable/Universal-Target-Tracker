@@ -1,6 +1,6 @@
 import math
 import time
-
+import os
 
 import cv2
 import numpy as np
@@ -10,6 +10,9 @@ import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
 import sys
+
+# Initialize Pygame
+pygame.init()
 
 # Function to calculate the distance between two points
 def distance(x1, y1, x2, y2):
@@ -54,12 +57,14 @@ def select_target_pixel(hotkey):
 
     # Run a loop to listen for key press and mouse click events
     while not pixel_selected:
+
+        # Process Pygame events
         for event in pygame.event.get():
             # Handle the Pygame quit event
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-              # Handle key press events
+            # Handle key press events
             if event.type == pygame.KEYDOWN:
                 # Check if the hotkey was pressed
                 if event.key == hotkey:
@@ -82,17 +87,17 @@ def find_target(screenshot, template_path):
     gray_image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2GRAY)
 
     # Load the target image template
-    template = cv2.imread(template_path, 0)
+template = cv2.imread(template_path, 0)
 
-    # Use the matchTemplate function to find the target image in the screenshot
-    result = cv2.matchTemplate(gray_image, template, cv2.TM_CCOEFF_NORMED)
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+# Use the matchTemplate function to find the target image in the screenshot
+result = cv2.matchTemplate(gray_image, template, cv2.TM_CCOEFF_NORMED)
+min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-    # If the target image was found in the screenshot, return the target coordinates
-    if max_val > 0.8:
-        return max_loc[0] + template.shape[1] // 2, max_loc[1] + template.shape[0] // 2
-    else:
-        return None
+# If the target image was found in the screenshot, return the target coordinates
+if max_val > 0.8:
+    return max_loc[0] + template.shape[1] // 2, max_loc[1] + template.shape[0] // 2
+else:
+    return None
 
 class AimbotGUI(QtWidgets.QWidget):
     def __init__(self):
@@ -144,7 +149,7 @@ class AimbotGUI(QtWidgets.QWidget):
         # Connect the stop button to the stopAimbot method
         stopButton.clicked.connect(self.stopAimbot)
 
-         # Add the widgets to the layout
+        # Add the widgets to the layout
         layout.addWidget(flickLabel)
         layout.addWidget(self.flickEdit)
         layout.addWidget(flickStrengthLabel)
@@ -160,16 +165,16 @@ class AimbotGUI(QtWidgets.QWidget):
         layout.addWidget(startButton)
         layout.addWidget(stopButton)
 
-        # Set the layout for the widget
-        self.setLayout(layout)
+         # Set the layout for the widget
+    self.setLayout(layout)
 
-        # Set the window title
-        self.setWindowTitle("Aimbot")
+    # Set the window title
+    self.setWindowTitle("Aimbot")
 
-        # Set the window size
-        self.resize(250, 300)
+    # Set the window size
+    self.resize(250, 300)
 
-    # Method to start the aimbot
+ # Method to start the aimbot
     def startAimbot(self):
         # Get the hotkeys and aimbot strength values from the GUI
         flick_hotkey = ord(self.flickEdit.text())
@@ -184,40 +189,53 @@ class AimbotGUI(QtWidgets.QWidget):
 
         # Run a loop to keep the aimbot running
         while aimbot_running:
+            # Process Pygame events
+            for event in pygame.event.get():
+                # Handle the Pygame quit event
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                # Handle key press events
+                elif event.type == pygame.KEYDOWN:
+                    # Check if the stop hotkey was pressed
+                    if event.key == pygame.K_ESCAPE:
+                        aimbot_running = False
+
             # Get a screenshot of the game window
             screenshot = pyautogui.screenshot()
 
-            # Select the target pixel using the flick hotkey
-            flick_target_x, flick_target_y = select_target_pixel(flick_hotkey)
+            # Check if the flick hotkey is being pressed
+            if pygame.key.get_pressed()[flick_hotkey]:
+                # Select a target pixel using the flick hotkey
+                target_x, target_y = select_target_pixel(flick_hotkey)
 
-            # Select the target pixel using the trigger hotkey
-            trigger_target_x, trigger_target_y = select_target_pixel(trigger_hotkey)
+                # Calculate the velocity of the target pixel
+                target_vx, target_vy = 0, 0
 
-            # Find the target element using image recognition
-            track_target_x, track_target_y = find_target(screenshot, "template.png")
+                # Update the aiming cursor position based on the aimbot
+                update_aim(flick_strength, 50, target_x, target_y, target_vx, target_vy)
 
-            # Update the aiming cursor position based on the aimbot strength and target coordinates
-            update_aim(flick_strength, 100, flick_target_x, flick_target_y)
-            update_aim(trigger_strength, 100, trigger_target_x, trigger_target_y)
-            update_aim(track_strength, 100, track_target_x, track_target_y)
+            # Check if the trigger hotkey is being pressed
+            elif pygame.key.get_pressed()[trigger_hotkey]:
+                # Find the target element using image recognition
+                target_x, target_y = find_target(screenshot, "template.png")
 
-            # Sleep for a short period of time
-            time.sleep(0.01)
+                # Calculate the velocity of the target element
+                target_vx, target_vy = 0, 0
 
-    # Method to stop the aimbot
-    def stopAimbot(self):
-        aimbot_running = False
+                # Update the aiming cursor position based on the aimbot
+                update_aim(trigger_strength, 50, target_x, target_y, target_vx, target_vy)
 
-# Run the GUI
-app = QtWidgets.QApplication([])
-window = AimbotGUI()
-window.show()
-app.exec_()
+            # Check if the track hotkey is being pressed
+            elif pygame.key.get_pressed()[track_hotkey]:
+                # Select a target pixel using the track hotkey
+                target_x, target_y = select_target_pixel(track_hotkey)
 
-def main():
-    app = QtWidgets.QApplication(sys.argv)
-    window = AimbotGUI()
-    sys.exit(app.exec_())
+                # Calculate the velocity of the target pixel
+                target_vx, target_vy = 0, 0
 
-if __name__ == '__main__':
-    main()
+                # Update the aiming cursor position based on the aimbot
+                update_aim(track_strength, 50, target_x, target_y, target_vx, target_vy)
+
+            # Wait for a short time before updating the aimbot again
+            time.sleep(0.1)
