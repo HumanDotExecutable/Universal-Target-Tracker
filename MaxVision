@@ -18,6 +18,7 @@ pygame.init()
 def distance(x1, y1, x2, y2):
     return abs(x1 - x2) + abs(y1 - y2)
 
+
 # Function to update the aiming cursor position based on the aimbot
 def update_aim(aimbot_strength, max_distance, target_x, target_y, target_vx, target_vy):
     # Get the current mouse position
@@ -48,6 +49,7 @@ def update_aim(aimbot_strength, max_distance, target_x, target_y, target_vx, tar
         # Update the aiming cursor position based on the aimbot force
         pyautogui.moveRel(force_x, force_y)
 
+# Function to select the target pixel by pressing a hotkey and clicking on the target
 def select_target_pixel(hotkey):
     # Flag to track whether the hotkey has been pressed
     hotkey_pressed = False
@@ -57,7 +59,6 @@ def select_target_pixel(hotkey):
 
     # Run a loop to listen for key press and mouse click events
     while not pixel_selected:
-
         # Process Pygame events
         for event in pygame.event.get():
             # Handle the Pygame quit event
@@ -65,21 +66,21 @@ def select_target_pixel(hotkey):
                 pygame.quit()
                 sys.exit()
             # Handle key press events
-            if event.type == pygame.KEYDOWN:
+            elif event.type == pygame.KEYDOWN:
                 # Check if the hotkey was pressed
                 if event.key == hotkey:
                     hotkey_pressed = True
-
             # Handle mouse click events
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            elif event.type == pygame.MOUSEBUTTONDOWN:
                 # Check if the hotkey has been pressed
                 if hotkey_pressed:
-                    # Get the mouse position when the mouse was clicked
+                # Get the mouse position when the mouse was clicked
                     x, y = pygame.mouse.get_pos()
                     pixel_selected = True
 
     # Return the target pixel coordinates
     return x, y
+
 
 # Function to find the target element in the game using image recognition
 def find_target(screenshot, template_path):
@@ -87,155 +88,111 @@ def find_target(screenshot, template_path):
     gray_image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2GRAY)
 
     # Load the target image template
-template = cv2.imread(template_path, 0)
+    template = cv2.imread(template_path, 0)
 
-# Use the matchTemplate function to find the target image in the screenshot
-result = cv2.matchTemplate(gray_image, template, cv2.TM_CCOEFF_NORMED)
-min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    # Use the matchTemplate function to find the target image in the screenshot
+    result = cv2.matchTemplate(gray_image, template, cv2.TM_CCOEFF_NORMED)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-# If the target image was found in the screenshot, return the target coordinates
-if max_val > 0.8:
-    return max_loc[0] + template.shape[1] // 2, max_loc[1] + template.shape[0] // 2
-else:
-    return None
+    # If the target image was found in the screenshot, return the target coordinates
+    if max_val > 0.8:
+        return max_loc[0] + template.shape[1] // 2, max_loc[1] + template.shape[0] // 2
+    else:
+        return None, None
 
-class AimbotGUI(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
-        self.initUI()
 
-    def initUI(self):
-        # Create a layout for the widgets
-        layout = QtWidgets.QVBoxLayout()
+# Function to get the velocity of the target
+def get_target_velocity(history, frame_time):
+    # Calculate the time elapsed between the current and previous frames
+    elapsed_time = frame_time - history[-1][2]
 
-        # Create QLineEdit widgets for the hotkeys
-        self.flickEdit = QtWidgets.QLineEdit()
-        self.triggerEdit = QtWidgets.QLineEdit()
-        self.trackEdit = QtWidgets.QLineEdit()
+    # Calculate the x and y velocities of the target
+    vx = (history[-1][0] - history[-2][0]) / elapsed_time
+    vy = (history[-1][1] - history[-2][1]) / elapsed_time
 
-        # Create QSlider widgets for the aimbot strength
-        self.flickSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.triggerSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.trackSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+    return vx, vy
 
-        # Set the input mask for the hotkey QLineEdit widgets
-        self.flickEdit.setInputMask("X")
-        self.triggerEdit.setInputMask("X")
-        self.trackEdit.setInputMask("X")
 
-        # Set the range and default value for the aimbot strength QSlider widgets
-        self.flickSlider.setRange(0, 100)
-        self.flickSlider.setValue(50)
-        self.triggerSlider.setRange(0, 100)
-        self.triggerSlider.setValue(50)
-        self.trackSlider.setRange(0, 100)
-        self.trackSlider.setValue(50)
+# Main function
+def main():
+    # Set the hotkey for selecting the target pixel
+    hotkey = pygame.K_SPACE
 
-        # Create QLabel widgets for the hotkeys and aimbot strength
-        flickLabel = QtWidgets.QLabel("Flick Hotkey:")
-        triggerLabel = QtWidgets.QLabel("Trigger Hotkey:")
-        trackLabel = QtWidgets.QLabel("Track Hotkey:")
-        flickStrengthLabel = QtWidgets.QLabel("Flick Aimbot Strength:")
-        triggerStrengthLabel = QtWidgets.QLabel("Trigger Aimbot Strength:")
-        trackStrengthLabel = QtWidgets.QLabel("Track Aimbot Strength:")
+    # Set the aimbot strength and maximum distance
+    aimbot_strength = 10
+    max_distance = 200
 
-        # Create QPushButton widgets for starting and stopping the aimbot
-        startButton = QtWidgets.QPushButton("Start Aimbot")
-        stopButton = QtWidgets.QPushButton("Stop Aimbot")
+    # Set the path to the target image template
+    template_path = "template.png"
 
-        # Connect the start button to the startAimbot method
-        startButton.clicked.connect(self.startAimbot)
+    # Set the frame rate of the game
+    frame_rate = 240
 
-        # Connect the stop button to the stopAimbot method
-        stopButton.clicked.connect(self.stopAimbot)
+    # Set the frame time in seconds
+    frame_time = 1 / frame_rate
 
-        # Add the widgets to the layout
-        layout.addWidget(flickLabel)
-        layout.addWidget(self.flickEdit)
-        layout.addWidget(flickStrengthLabel)
-        layout.addWidget(self.flickSlider)
-        layout.addWidget(triggerLabel)
-        layout.addWidget(self.triggerEdit)
-        layout.addWidget(triggerStrengthLabel)
-        layout.addWidget(self.triggerSlider)
-        layout.addWidget(trackLabel)
-        layout.addWidget(self.trackEdit)
-        layout.addWidget(trackStrengthLabel)
-        layout.addWidget(self.trackSlider)
-        layout.addWidget(startButton)
-        layout.addWidget(stopButton)
+    # Set the maximum number of history entries to store
+    max_history = 5
 
-         # Set the layout for the widget
-    self.setLayout(layout)
+    # Set the starting time for calculating the frame rate
+    start_time = time.time()
 
-    # Set the window title
-    self.setWindowTitle("Aimbot")
+    # Create a Pygame window
+    window = pygame.display.set_mode((0, 0))
 
-    # Set the window size
-    self.resize(250, 300)
+    # Set the Pygame window title
+    pygame.display.set_caption("Aimbot")
 
- # Method to start the aimbot
-    def startAimbot(self):
-        # Get the hotkeys and aimbot strength values from the GUI
-        flick_hotkey = ord(self.flickEdit.text())
-        trigger_hotkey = ord(self.triggerEdit.text())
-        track_hotkey = ord(self.trackEdit.text())
-        flick_strength = self.flickSlider.value()
-        trigger_strength = self.triggerSlider.value()
-        track_strength = self.trackSlider.value()
+    # Create a Pygame clock to control the frame rate
+    clock = pygame.time.Clock()
 
-        # Flag to track whether the aimbot is running
-        aimbot_running = True
+    # Create a list to store the history of target positions
+    history = []
 
-        # Run a loop to keep the aimbot running
-        while aimbot_running:
-            # Process Pygame events
-            for event in pygame.event.get():
-                # Handle the Pygame quit event
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                # Handle key press events
-                elif event.type == pygame.KEYDOWN:
-                    # Check if the stop hotkey was pressed
-                    if event.key == pygame.K_ESCAPE:
-                        aimbot_running = False
+    # Run a loop to continuously capture game screenshots and update the aimbot
+    while True:
+        # Capture a screenshot of the game window
+        screenshot = pyautogui.screenshot()
 
-            # Get a screenshot of the game window
-            screenshot = pyautogui.screenshot()
+        # Find the target using image recognition
+        target_x, target_y = find_target(screenshot, template_path)
 
-            # Check if the flick hotkey is being pressed
-            if pygame.key.get_pressed()[flick_hotkey]:
-                # Select a target pixel using the flick hotkey
-                target_x, target_y = select_target_pixel(flick_hotkey)
+                # If the target was found, add the target position to the history
+        if target_x is not None and target_y is not None:
+            # Append the target position and current time to the history list
+            history.append((target_x, target_y, time.time()))
 
-                # Calculate the velocity of the target pixel
+            # If the history list is longer than the maximum number of entries, remove the oldest entry
+            if len(history) > max_history:
+                history.pop(0)
+
+            # If there are enough history entries to calculate the velocity, get the target velocity
+            if len(history) >= 2:
+                target_vx, target_vy = get_target_velocity(history, frame_time)
+            else:
                 target_vx, target_vy = 0, 0
+        else:
+            # If the target was not found, reset the history
+            history = []
+            target_vx, target_vy = 0, 0
 
-                # Update the aiming cursor position based on the aimbot
-                update_aim(flick_strength, 50, target_x, target_y, target_vx, target_vy)
+        # Update the aiming cursor position based on the aimbot
+        update_aim(aimbot_strength, max_distance, target_x, target_y, target_vx, target_vy)
 
-            # Check if the trigger hotkey is being pressed
-            elif pygame.key.get_pressed()[trigger_hotkey]:
-                # Find the target element using image recognition
-                target_x, target_y = find_target(screenshot, "template.png")
+        # Wait for the frame rate time to pass
+        clock.tick(frame_rate)
 
-                # Calculate the velocity of the target element
-                target_vx, target_vy = 0, 0
+        # Calculate the elapsed time
+        elapsed_time = time.time() - start_time
 
-                # Update the aiming cursor position based on the aimbot
-                update_aim(trigger_strength, 50, target_x, target_y, target_vx, target_vy)
+        # If the elapsed time is greater than the frame time, print the frame rate
+        if elapsed_time > frame_time:
+            # Calculate the frame rate
+            frame_rate = len(history) / elapsed_time
 
-            # Check if the track hotkey is being pressed
-            elif pygame.key.get_pressed()[track_hotkey]:
-                # Select a target pixel using the track hotkey
-                target_x, target_y = select_target_pixel(track_hotkey)
+            # Reset the start time
+            start_time = time.time()
 
-                # Calculate the velocity of the target pixel
-                target_vx, target_vy = 0, 0
-
-                # Update the aiming cursor position based on the aimbot
-                update_aim(track_strength, 50, target_x, target_y, target_vx, target_vy)
-
-            # Wait for a short time before updating the aimbot again
-            time.sleep(0.1)
+# Run the main function
+if __name__ == "__main__":
+    main()
