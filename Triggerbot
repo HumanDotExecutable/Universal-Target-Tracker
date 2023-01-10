@@ -38,6 +38,49 @@ class MSG(ctypes.Structure):
 HOOKPROC = CFUNCTYPE(c_int, c_int, c_void_p, POINTER(MSG))
 user32 = ctypes.windll.user32
 
+def take_screenshot(game_window_handle, game_window_rect):
+    save_dc = win32ui.CreateDCFromHandle(win32gui.GetDC(game_window_handle))
+    try:
+        # code using save_dc goes here
+        with win32ui.CreateDCFromHandle(win32gui.GetDC(game_window_handle)) as save_dc:
+            with save_dc.CreateCompatibleDC() as compatible_dc:
+                with win32ui.CreateBitmap() as save_bit_map:
+                    save_bit_map = win32ui.CreateBitmap()
+                    save_bit_map.CreateCompatibleBitmap(save_dc, game_window_rect[2], game_window_rect[3])
+                    compatible_dc.SelectObject(save_bit_map)
+                    compatible_dc.BitBlt((0, 0), (game_window_rect[2], game_window_rect[3]), save_dc, (0, 0), win32con.SRCCOPY)
+                    bmp_info = save_bit_map.GetInfo()
+                    bmp_str = ctypes.create_string_buffer(bmp_info['bmHeight'] * bmp_info['bmWidth'] * 4)
+                    save_bit_map.GetDIBits(compatible_dc, save_bit_map, 0, bmp_info['bmHeight'], byref(bmp_str), byref(bmp_info), win32con.DIB_RGB_COLORS)
+                    img = np.frombuffer(bmp_str, dtype='uint8')
+                    img.shape = (bmp_info['bmHeight'], bmp_info['bmWidth'], 4)
+                    win32gui.DeleteObject(save_bit_map.GetHandle())
+                    return img
+    finally:
+        save_dc.DeleteDC()
+        compatible_dc.DeleteDC()
+
+def check_if_enemy_in_sight(screenshot):
+    # Convert the screenshot to a NumPy array
+    screenshot = np.array(screenshot)
+    # Convert the screenshot to a BGR image
+    bgr_image = cv2.cvtColor(screenshot, cv2.COLOR_RGB2BGR)
+    # Convert the image to a HSV image
+    hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)
+    # Define the range of colors to detect (in HSV)
+    lower_color = np.array([0, 0, 0])
+    upper_color = np.array([255, 255, 255])
+    # Create a mask for the colors within the defined range
+    mask = cv2.inRange(hsv_image, lower_color, upper_color)
+    # Find contours in the mask
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        if cv2.contourArea(contour) > 100:
+            (x, y, w, h) = cv2.boundingRect(contour)
+            cv2.rectangle(bgr_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            return True
+    return False
+
 # Function to start the triggerbot loop
 def triggerbot_loop():
      while True:
@@ -76,37 +119,15 @@ def low_level_keyboard_callback(nCode, wParam, lParam, hook_id, hotkey):
     if wParam == win32con.WM_KEYDOWN:
         # Check if the hotkey has been pressed
         if lParam[0] == ord(hotkey):
-            # Start the triggerbot loop
             running = True
+            with ThreadPoolExecutor() as executor:
+                executor.submit(triggerbot_loop)
     elif wParam == win32con.WM_KEYUP:
         # Check if the hotkey has been released
         if lParam[0] == ord(hotkey):
-            # Stop the triggerbot loop
             running = False
     # Pass the hook information to the next hook in the chain
     return user32.CallNextHookEx(0, nCode, wParam, lParam)
-
-def take_screenshot(game_window_handle, game_window_rect):
-    save_dc = win32ui.CreateDCFromHandle(win32gui.GetDC(game_window_handle))
-    try:
-        # code using save_dc goes here
-        with win32ui.CreateDCFromHandle(win32gui.GetDC(game_window_handle)) as save_dc:
-            with save_dc.CreateCompatibleDC() as compatible_dc:
-                with win32ui.CreateBitmap() as save_bit_map:
-                    save_bit_map = win32ui.CreateBitmap()
-                    save_bit_map.CreateCompatibleBitmap(save_dc, game_window_rect[2], game_window_rect[3])
-                    compatible_dc.SelectObject(save_bit_map)
-                    compatible_dc.BitBlt((0, 0), (game_window_rect[2], game_window_rect[3]), save_dc, (0, 0), win32con.SRCCOPY)
-                    bmp_info = save_bit_map.GetInfo()
-                    bmp_str = ctypes.create_string_buffer(bmp_info['bmHeight'] * bmp_info['bmWidth'] * 4)
-                    save_bit_map.GetDIBits(compatible_dc, save_bit_map, 0, bmp_info['bmHeight'], byref(bmp_str), byref(bmp_info), win32con.DIB_RGB_COLORS)
-                    img = np.frombuffer(bmp_str, dtype='uint8')
-                    img.shape = (bmp_info['bmHeight'], bmp_info['bmWidth'], 4)
-                    win32gui.DeleteObject(save_bit_map.GetHandle())
-                    return img
-    finally:
-        save_dc.DeleteDC()
-        compatible_dc.DeleteDC()
 
 # Start triggerbot loop on hotkey press
 hotkey = 'F1'
@@ -114,6 +135,34 @@ hook_id = create_keyboard_hook(hotkey, low_level_keyboard_callback)
 running = True
 thread = threading.Thread(target=triggerbot_loop, args=(running,))
 thread.start()
+
+class MyWindow(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        
+        # Set up the user interface
+        self.button = QtWidgets.QPushButton("Select color", self)
+        self.button.move(50, 50)
+        self.button.clicked.connect(self.select_color)
+        
+        self.lower_color = np.array([0, 0, 0])
+        self.upper_color = np.array([255, 255, 255])
+        
+    def select_color(self):
+        # Get the color of the center pixel of the screen
+        x, y = pyautogui.size()
+        x //= 2
+        y //= 2
+        color = pyautogui.screenshot().getpixel((x, y))
+        color = np.array(color)
+        # Set the range of colors to detect
+        self.lower_color = color - np.array([10, 10, 10])
+        self.upper_color = color + np.array([10, 10, 10])
+        
+    def keyPressEvent(self, event):
+        # handle key events
+        if event.key() == QtCore.Qt.Key_Insert:
+            self.select_color()
 
 class GUIThread(QtCore.QObject):
     color_selected = QtCore.pyqtSignal(int, int, int)
@@ -234,5 +283,3 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication([])
     GUIThread()
     app.exec_()
-    
-    
