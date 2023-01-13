@@ -2,44 +2,160 @@ import pyautogui
 import keyboard
 import time
 import tkinter as tk
+import random
+import cv2
+
+fov = 0
+speed = 0
+projectile_prediction = 0
+humanizer_scale = 0
+target_tracker_active = False
+clickbot_mode_active = False
+flickbot_mode_active = False
 
 def target_tracking(fov, speed, projectile_prediction, humanizer_scale):
-    # Code for target tracking algorithm using fov, speed, projectile prediction, and humanizer scale
-    pass
+    # Get current mouse position
+    current_x, current_y = pyautogui.position()
+    target_x, target_y = get_target()
+    if target_x != None and target_y != None:
+        # Move the mouse to the target position
+        pyautogui.moveTo(target_x, target_y, speed)
+    else:
+        target_x = current_x + fov * projectile_prediction
+        target_y = current_y + fov * projectile_prediction
+
+        # Add randomness to the movement using the humanizer scale
+        target_x += (random.randint(-humanizer_scale, humanizer_scale))
+        target_y += (random.randint(-humanizer_scale, humanizer_scale))
+
+        # Move the mouse to the target position
+        pyautogui.moveTo(target_x, target_y, speed)
+
+def get_target():
+    # Code to capture the screen and find the target using color detection
+    sct = mss()
+    img = np.array(sct.grab(sct.monitors[0]))
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lower_color = np.array([0,0,0])
+    upper_color = np.array([255,255,255])
+    mask = cv2.inRange(hsv, lower_color, upper_color)
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        (x, y, w, h) = cv2.boundingRect(contour)
+        # you can add some condition here to make sure the contour found is the target you want
+        if w*h > 100:
+            return (x+w/2, y+h/2)
+    return (None, None)
 
 def activate_target_tracker():
-    # Code to activate target tracker using a hotkey
-    pass
+    global target_tracker_active
+    if not target_tracker_active:
+        target_tracker_active = True
+        print("Target Tracker Activated")
+    else:
+        print("Target Tracker already active")
+    while target_tracker_active:
+        target_tracking(fov, speed, projectile_prediction, humanizer_scale)
+        time.sleep(0.1)
 
 def deactivate_target_tracker():
-    # Code to deactivate target tracker using a hotkey
-    pass
+    global target_tracker_active
+    if target_tracker_active:
+        target_tracker_active = False
+        print("Target Tracker Deactivated")
+    else:
+        print("Target Tracker already inactive")
 
 def clickbot_mode():
-    # Code to activate clickbot mode and change algorithm accordingly
-    pass
+    global clickbot_mode_active
+    if not clickbot_mode_active:
+        clickbot_mode_active = True
+        print("Clickbot Mode Activated")
+    else:
+        print("Clickbot Mode already active")
+    # Code to change algorithm for clickbot mode
+    while clickbot_mode_active:
+        # Click the mouse at the current position
+        pyautogui.click()
+        time.sleep(0.1)
 
 def flickbot_mode():
-    # Code to activate flickbot mode and change algorithm accordingly
-    pass
+    global flickbot_mode_active
+    if not flickbot_mode_active:
+        flickbot_mode_active = True
+        print("Flickbot Mode Activated")
+    else:
+        print("Flickbot Mode already active")
+    while flickbot_mode_active:
+        # Get current mouse position
+        current_x, current_y = pyautogui.position()
+
+        # Algorithm for determining target position using fov and projectile prediction
+        target_x = current_x + fov * projectile_prediction
+        target_y = current_y + fov * projectile_prediction
+
+        # Add randomness to the movement using the humanizer scale
+        target_x += (random.randint(-humanizer_scale, humanizer_scale))
+        target_y += (random.randint(-humanizer_scale, humanizer_scale))
+
+         # Move the mouse to the target position
+        pyautogui.moveTo(target_x, target_y, speed)
+        pyautogui.mouseDown()
+        pyautogui.mouseUp()
+        time.sleep(0.1)
+
+def set_parameters():
+    global fov, speed, projectile_prediction, humanizer_scale
+    fov = int(fov_entry.get())
+    speed = int(speed_entry.get())
+    projectile_prediction = int(projectile_prediction_entry.get())
+    humanizer_scale = int(humanizer_scale_entry.get())
 
 def create_gui():
-    # Code to create a GUI using tkinter for users to customize settings and activate different modes
-    pass
+    # Create root window
+    root = tk.Tk()
+    root.title("Target Tracker")
 
-# Main code
+    # Create labels for parameters
+    fov_label = tk.Label(root, text="FOV: ")
+    fov_label.pack()
+    speed_label = tk.Label(root, text="Speed: ")
+    speed_label.pack()
+    projectile_prediction_label = tk.Label(root, text="Projectile Prediction: ")
+    projectile_prediction_label.pack()
+    humanizer_scale_label = tk.Label(root, text="Humanizer Scale: ")
+    humanizer_scale_label.pack()
+
+    # Create entry fields for parameters
+    fov_entry = tk.Entry(root)
+    fov_entry.pack()
+    speed_entry = tk.Entry(root)
+    speed_entry.pack()
+    projectile_prediction_entry = tk.Entry(root)
+    projectile_prediction_entry.pack()
+    humanizer_scale_entry = tk.Entry(root)
+    humanizer_scale_entry.pack()
+
+    # Create buttons for activating and deactivating target tracker
+    activate_button = tk.Button(root, text="Activate Target Tracker", command=activate_target_tracker)
+    activate_button.pack()
+    deactivate_button = tk.Button(root, text="Deactivate Target Tracker", command=deactivate_target_tracker)
+    deactivate_button.pack()
+    clickbot_button = tk.Button(root, text="Activate Clickbot Mode", command=clickbot_mode)
+    clickbot_button.pack()
+    flickbot_button = tk.Button(root, text="Activate Flickbot Mode", command=flickbot_mode)
+    flickbot_button.pack()
+    set_parameters_button = tk.Button(root, text="Set Parameters", command=set_parameters)
+    set_parameters_button.pack()
+    root.protocol("WM_DELETE_WINDOW", deactivate_target_tracker)
+    root.mainloop()
+
 if __name__ == "__main__":
-    create_gui()
-    while True:
-        if keyboard.is_pressed('start_key'):
-            if target_tracker_active:
-                target_tracking()
-            if clickbot_mode_active:
-                clickbot_mode()
-            if flickbot_mode_active:
-                flickbot_mode()
-        else:
-            deactivate_target_tracker()
-            deactivate_clickbot_mode()
-            deactivate_flickbot_mode()
-        time.sleep(0.1)
+    try:
+        import pyautogui
+        import keyboard
+        import tkinter as tk
+    except ImportError:
+        print("pyautogui, keyboard and tkinter libraries must be installed.")
+    else:
+        create_gui()
