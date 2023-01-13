@@ -1,0 +1,45 @@
+import pyautogui
+import keyboard
+import time
+import tkinter as tk
+
+def target_tracking(fov, speed, projectile_prediction, humanizer_scale):
+    # Code for target tracking algorithm using fov, speed, projectile prediction, and humanizer scale
+    pass
+
+def activate_target_tracker():
+    # Code to activate target tracker using a hotkey
+    pass
+
+def deactivate_target_tracker():
+    # Code to deactivate target tracker using a hotkey
+    pass
+
+def clickbot_mode():
+    # Code to activate clickbot mode and change algorithm accordingly
+    pass
+
+def flickbot_mode():
+    # Code to activate flickbot mode and change algorithm accordingly
+    pass
+
+def create_gui():
+    # Code to create a GUI using tkinter for users to customize settings and activate different modes
+    pass
+
+# Main code
+if __name__ == "__main__":
+    create_gui()
+    while True:
+        if keyboard.is_pressed('start_key'):
+            if target_tracker_active:
+                target_tracking()
+            if clickbot_mode_active:
+                clickbot_mode()
+            if flickbot_mode_active:
+                flickbot_mode()
+        else:
+            deactivate_target_tracker()
+            deactivate_clickbot_mode()
+            deactivate_flickbot_mode()
+        time.sleep(0.1)
