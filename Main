@@ -1,0 +1,102 @@
+import cv2
+import pyautogui
+import threading
+import numpy as np
+
+target_window = input("Enter target window from list of available programs: ")
+confirm = input("Confirm target window (y/n): ")
+if confirm != "y":
+    print("Exiting program.")
+    exit()
+
+target_color = None
+def get_target_color():
+    global target_color
+    input("Press insert key to select target color.")
+    target_color = pyautogui.screenshot(region=(target_window[0], target_window[1], 1, 1))
+
+threading.Thread(target=get_target_color).start()
+
+mode = "tracking"
+def set_mode(new_mode):
+    global mode
+    if new_mode in ["tracking", "click", "flick"]:
+        mode = new_mode
+        print("Mode set to: " + mode)
+
+def cycle_mode():
+    global mode
+    if mode == "tracking":
+        set_mode("click")
+    elif mode == "click":
+        set_mode("flick")
+    else:
+        set_mode("tracking")
+
+hotkey_tracking = "f6"
+hotkey_click = "f7"
+hotkey_flick = "f8"
+hotkey_cycle = "right alt"
+
+target_location = None
+def tracking_mode():
+    global target_location
+    while True:
+        if pyautogui.hotkey(hotkey_tracking):
+            screenshot = pyautogui.screenshot()
+            screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            hsv = cv2.cvtColor(screenshot, cv2.COLOR_BGR2HSV)
+
+            lower_color = np.array([target_color[0]-10, target_color[1]-10, target_color[2]-10])
+            upper_color = np.array([target_color[0]+10, target_color[1]+10, target_color[2]+10])
+
+            mask = cv2.inRange(hsv, lower_color, upper_color)
+
+            contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            if contours:
+                closest_distance = float("inf")
+                closest_contour = None
+                mouse_pos = pyautogui.position()
+                for contour in contours:
+                    M = cv2.moments(contour)
+                    if M["m00"] != 0:
+                        cX = int(M["m10"] / M["m00"])
+                        cY = int(M["m01"] / M["m00"])
+                        distance = ((cX - mouse_pos[0]) ** 2 + (cY - mouse_pos[1]) ** 2) ** 0.5
+                        if distance < closest_distance:
+                            closest_distance = distance
+                            closest_contour = contour
+
+                M = cv2.moments(closest_contour)
+                target_location = (int(M["m10"] / M["m00"]), int(M["mY"] / M["m00"]))
+            if pyautogui.position()[0] < target_location[0]:
+                pyautogui.moveRel(1, 0)
+            elif pyautogui.position()[0] > target_location[0]:
+                pyautogui.moveRel(-1, 0)
+
+            if pyautogui.position()[1] < target_location[1]:
+                pyautogui.moveRel(0, 1)
+            elif pyautogui.position()[1] > target_location[1]:
+                pyautogui.moveRel(0, -1)
+                
+def click_mode():
+    while True:
+        if pyautogui.hotkey(hotkey_click):
+            if target_location and pyautogui.position() == target_location:
+                pyautogui.click()
+
+def flick_mode():
+    while True:
+        if pyautogui.hotkey(hotkey_flick, interval=0.1):
+            if target_location:
+                pyautogui.moveTo(target_location[0], target_location[1], duration=0.1)
+                pyautogui.click()
+
+threading.Thread(target=tracking_mode).start()
+threading.Thread(target=click_mode).start()
+threading.Thread(target=flick_mode).start()
+
+while True:
+    if pyautogui.hotkey(hotkey_cycle):
+        cycle_mode()
